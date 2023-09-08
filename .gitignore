@@ -1,0 +1,6 @@
+CloudFlareDNSwiz/
+__pycache__/
+config.txt
+*.pyc
+*.pyo
+*.egg-info/
