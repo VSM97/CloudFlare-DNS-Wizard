@@ -144,6 +144,41 @@ def update_dns_records(email, api_token, zone_id, record_type, new_content):
     except Exception as e:
         print(f"An error occurred while updating DNS records: {str(e)}")
 
+def add_dns_records(email, api_token, zone_id, record_type, new_records):
+    try:
+        # Loop through the new records and add them to the DNS zone
+        for new_record in new_records:
+            content = new_record.split(' ')[0]
+            name = new_record.split(' ')[1]
+
+            data = {
+                "type": record_type,
+                "name": name,
+                "content": content,
+                "ttl": 1,
+                "proxied": False
+            }
+
+            # Add the new DNS record using Cloudflare API
+            url = f"https://api.cloudflare.com/client/v4/zones/{zone_id}/dns_records"
+            headers = {
+                "Authorization": f"Bearer {api_token}",
+                "Content-Type": "application/json"
+            }
+            response = requests.post(url, json=data, headers=headers)
+
+            if response.status_code == 200:
+                print(f"Added DNS record: Type - {record_type}, Name - {name}, Content - {content}")
+            else:
+                print(f"Failed to add DNS record: Type - {record_type}, Name - {name}, Content - {content}. Status code: {response.status_code}")
+                print("Response Headers:")
+                print(response.headers)  # Log the response headers
+                print("Response Content:")
+                print(response.text)  # Log the response content
+
+    except Exception as e:
+        print(f"An error occurred while adding DNS records: {str(e)}")
+
 def purge_api_details():
     if os.path.isfile('config.txt'):
         os.remove('config.txt')
@@ -162,8 +197,9 @@ def main():
         print("2. Display Zone Information")
         print("3. Display Account Information")
         print("4. Update DNS Records")
-        print("5. Purge API Details and Start Over")
-        print("6. Exit")
+        print("5. Add New DNS Records")
+        print("6. Purge API Details and Start Over")
+        print("7. Exit")
 
         action = input("Enter the number corresponding to the action: ").strip()
 
@@ -203,8 +239,38 @@ def main():
             new_content = input("Enter the new content for the records: ").strip()
             update_dns_records(email, api_token, zone_id, record_type, new_content)
         elif action == '5':
-            purge_api_details()
+            print("Select a DNS record type:")
+            print("1. A records")
+            print("2. AAAA records")
+            print("3. CNAME records")
+            print("4. MX records")
+            print("5. TXT records")
+            print("6. NS records")
+
+            record_type_input = input("Enter the number corresponding to the DNS record type: ").strip()
+
+            if record_type_input == '1':
+                record_type = 'A'
+            elif record_type_input == '2':
+                record_type = 'AAAA'
+            elif record_type_input == '3':
+                record_type = 'CNAME'
+            elif record_type_input == '4':
+                record_type = 'MX'
+            elif record_type_input == '5':
+                record_type = 'TXT'
+            elif record_type_input == '6':
+                record_type = 'NS'
+            else:
+                print("Invalid DNS record type selection.")
+                continue  # Return to the main menu
+
+            new_records_input = input("Enter the new DNS records (IP Address followed by domain, separated by spaces): ").strip()
+            new_records = new_records_input.split('\n')
+            add_dns_records(email, api_token, zone_id, record_type, new_records)
         elif action == '6':
+            purge_api_details()
+        elif action == '7':
             break
         else:
             print("Invalid action selection.")
