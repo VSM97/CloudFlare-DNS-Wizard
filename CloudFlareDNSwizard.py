@@ -107,6 +107,10 @@ def fetch_dns_records(email, api_token, zone_id):
                 print(f"Type: {record['type']}, Name: {record['name']}, Content: {record['content']}")
         else:
             print(f"Failed to fetch DNS records. Status code: {response.status_code}")
+            print("Response Headers:")
+            print(response.headers)  # Log the response headers
+            print("Response Content:")
+            print(response.text)  # Log the response content
 
     except Exception as e:
         print(f"An error occurred while fetching DNS records: {str(e)}")
@@ -138,19 +142,23 @@ def update_dns_records(email, api_token, zone_id, record_type, new_content):
                     print(f"Updated DNS record {record_name} with new content: {new_content}")
                 else:
                     print(f"Failed to update DNS record {record_name}. Status code: {update_response.status_code}")
+                    print("Response Headers:")
+                    print(response.headers)  # Log the response headers
+                    print("Response Content:")
+                    print(response.text)  # Log the response content
         else:
             print(f"Failed to fetch DNS records. Status code: {response.status_code}")
 
     except Exception as e:
         print(f"An error occurred while updating DNS records: {str(e)}")
 
+
+
 def add_dns_records(email, api_token, zone_id, record_type, new_records):
     try:
         # Loop through the new records and add them to the DNS zone
         for new_record in new_records:
-            content = new_record.split(' ')[0]
-            name = new_record.split(' ')[1]
-
+            content, name = new_record.split(' ')
             data = {
                 "type": record_type,
                 "name": name,
@@ -171,19 +179,70 @@ def add_dns_records(email, api_token, zone_id, record_type, new_records):
                 print(f"Added DNS record: Type - {record_type}, Name - {name}, Content - {content}")
             else:
                 print(f"Failed to add DNS record: Type - {record_type}, Name - {name}, Content - {content}. Status code: {response.status_code}")
-                print("Response Headers:")
-                print(response.headers)  # Log the response headers
-                print("Response Content:")
-                print(response.text)  # Log the response content
 
     except Exception as e:
         print(f"An error occurred while adding DNS records: {str(e)}")
+
+
+def remove_dns_records(email, api_token, zone_id, identifier):
+    try:
+        # Fetch DNS records using Cloudflare API
+        url = f"https://api.cloudflare.com/client/v4/zones/{zone_id}/dns_records"
+        headers = {
+            "Authorization": f"Bearer {api_token}",
+            "Content-Type": "application/json"
+        }
+        response = requests.get(url, headers=headers)
+
+        if response.status_code == 200:
+            dns_records = response.json()["result"]
+
+            # Display DNS records for selection
+            print("Select DNS records to remove:")
+            for index, record in enumerate(dns_records, start=1):
+                print(f"{index}. Type - {record['type']}, Name - {record['name']}, Content - {record['content']}")
+
+            selection = input("Enter the numbers corresponding to the records to remove (e.g., 1-3,5,10-15): ").strip()
+
+            # Parse the selection input into individual indices
+            selected_indices = []
+            ranges = selection.split(',')
+            for r in ranges:
+                if '-' in r:
+                    start, end = map(int, r.split('-'))
+                    selected_indices.extend(range(start, end + 1))
+                else:
+                    selected_indices.append(int(r))
+
+            # Remove selected DNS records using Cloudflare API
+            for index in selected_indices:
+                if 1 <= index <= len(dns_records):
+                    record_id = dns_records[index - 1]["id"]
+                    delete_url = f"https://api.cloudflare.com/client/v4/zones/{zone_id}/dns_records/{record_id}"
+                    delete_response = requests.delete(delete_url, headers=headers)
+
+                    if delete_response.status_code == 200:
+                        print(f"Removed DNS record: Type - {dns_records[index - 1]['type']}, Name - {dns_records[index - 1]['name']}, Content - {dns_records[index - 1]['content']}")
+                    else:
+                        print(f"Failed to remove DNS record: Type - {dns_records[index - 1]['type']}, Name - {dns_records[index - 1]['name']}, Content - {dns_records[index - 1]['content']}. Status code: {delete_response.status_code}")
+                        print("Response Headers:")
+                        print(response.headers)  # Log the response headers
+                        print("Response Content:")
+                        print(response.text)  # Log the response content
+                else:
+                    print(f"Invalid selection: {index}")
+
+        else:
+            print(f"Failed to fetch DNS records. Status code: {response.status_code}")
+
+    except Exception as e:
+        print(f"An error occurred while removing DNS records: {str(e)}")
+
 
 def purge_api_details():
     if os.path.isfile('config.txt'):
         os.remove('config.txt')
         print("API details purged. You can now start the script from the beginning.")
-
 
 def main():
     email, api_token, zone_id, identifier = get_api_details()
@@ -198,15 +257,16 @@ def main():
         print("3. Display Account Information")
         print("4. Update DNS Records")
         print("5. Add New DNS Records")
-        print("6. Purge API Details and Start Over")
-        print("7. Exit")
+        print("6. Remove DNS Records")
+        print("7. Purge API Details and Start Over")
+        print("8. Exit")
 
         action = input("Enter the number corresponding to the action: ").strip()
 
         if action == '1':
             fetch_dns_records(email, api_token, zone_id)
         elif action == '2':
-            display_zone_info(email, api_token, zone_id)    
+            display_zone_info(email, api_token, zone_id)
         elif action == '3':
             display_account_info(email, api_token, identifier)
         elif action == '4':
@@ -263,20 +323,31 @@ def main():
                 record_type = 'NS'
             else:
                 print("Invalid DNS record type selection.")
+                input("Press Enter to continue...")  # Wait for user input to clear the input buffer
                 continue  # Return to the main menu
 
-            new_records_input = input("Enter the new DNS records (IP Address followed by domain, separated by spaces): ").strip()
-            new_records = new_records_input.split('\n')
+            new_records = []
+            while True:
+                print("Enter the new DNS record (IP Address followed by domain, separated by a space):")
+                new_record_input = input().strip()
+                if not new_record_input:
+                    break  # If the user enters an empty line, exit the loop
+                new_records.append(new_record_input)
             add_dns_records(email, api_token, zone_id, record_type, new_records)
         elif action == '6':
-            purge_api_details()
+            remove_dns_records(email, api_token, zone_id, identifier)
         elif action == '7':
+            purge_api_details()
+        elif action == '8':
             break
         else:
             print("Invalid action selection.")
 
 if __name__ == "__main__":
     main()
+
+
+
 
 
 
